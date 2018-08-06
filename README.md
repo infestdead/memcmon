@@ -12,6 +12,6 @@ install
 
 3. move the script to executable folder - /usr/local/bin/ or whatever you prefer
 
-4. edit the script and add your server(s)
+4. edit the script and add your server(s) to the @memc array 
 
 5. run the script
