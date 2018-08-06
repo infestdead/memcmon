@@ -6,7 +6,12 @@ memcmon is a perl script to monitor memcached servers performance in real time
 install
 ======
 
-download the memcmon script via https://github.com/infestdead/memcmon
-$chmod +x memcmon
-move the script to executable folder - /usr/bin/ or whatever you prefer
-$ memcmon to run the script
+1. download the memcmon script
+
+2. chmod +x memcmon
+
+3. move the script to executable folder - /usr/local/bin/ or whatever you prefer
+
+4. edit the script and add your server(s)
+
+5. run the script
