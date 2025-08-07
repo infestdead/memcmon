@@ -18,31 +18,17 @@
 ####
 
 
+use lib "/home/jules/perl5/lib/perl5";
 use strict;
-
-# check for required modules
-eval "use Curses;";
-if ($@) {
-    print "sorry, could not find the 'Curses' perl module, please install it and try again\n";
-    exit;
-}
-eval "use Time::HiRes qw(gettimeofday tv_interval usleep);";
-if ($@) {
-    print "sorry, could not find the 'Time::HiRes' perl module, please install it and try again\n";
-    exit;
-}
-
 use Curses;
 use Time::HiRes qw(gettimeofday tv_interval usleep);
+use POSIX;
 
 # enter memcahed IPs below
 # if :port not supplied - assume :11211
 my @memc = qw(
-localhost
-localhost:11222
-192.168.9.10
-mmc1
-mmc2
+localhost:11211
+127.0.0.1:11212
 );
 
 $| = 1;
@@ -170,10 +156,19 @@ while (1) {
 		$curr_connections = "err";
 		my ($server_t, $port) = split /:/, $server;
 		$port = 11211 unless $port;
-		my @stats = `timeout 2s echo stats | nc $server_t $port 2>/dev/null`;
-		if ($?) {
-			$curr_connections = "down";
-			$get_hitsps = $get_missesps = $succ_hitps = $limit_maxbytes = $bytes = $usage_percentage = $curr_items = $curr_items_change = $bytes_read = $bytes_written = $evictions = $threads = $uptime = $version = "-";
+		my @stats;
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n" };
+			alarm 2;
+			@stats = `echo stats | nc -w 1 $server_t $port 2>/dev/null`;
+			alarm 0;
+		};
+		if ($@) {
+			$uptime = $bytes = $usage_percentage = $bytes
+			= $version = $get_hitsps = $curr_items_change
+			= $curr_connections  = $get_missesps
+			= $threads = $limit_maxbytes = $curr_items = $bytes_read = $bytes_written = $evictions
+			= "err";
 		}
 		foreach (@stats) {
 			(undef, $what, $howmuch) = split / /, $_;
@@ -246,10 +241,14 @@ while (1) {
 								$total_evictions += $evictions;
 			}
 		}
-		if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
-			$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+		if ($curr_connections eq "err") {
+			$succ_hitps = "-";
 		} else {
-			$succ_hitps = "0.00";
+			if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
+				$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+			} else {
+				$succ_hitps = "0.00";
+			}
 		}
 		write FILE;
 
@@ -329,7 +328,7 @@ while (1) {
 	refresh();
 }
 format FILE = 
-@<<<<<<<<<<<<<<<<<<<<< @>>>>>>  @>>>>>  @>>>>> @#####    @>>>>> @####.## @##.##@#########  @>>>>> @##.##    @##.##    @####      @>>>  @>>>>>     @>>>>>
+@<<<<<<<<<<<<<<<<<<<<< @>>>>>>  @>>>>>  @>>>>> @##.##    @>>>>> @####.## @##.##@#########  @>>>>> @##.##    @##.##    @####      @>>>  @>>>>>     @>>>>>
 $server, $curr_connections, $get_hitsps, $get_missesps, $succ_hitps, $limit_maxbytes, $bytes, $usage_percentage, $curr_items, $curr_items_change, $bytes_read, $bytes_written, $evictions, $threads, $uptime, $version
 .
 
