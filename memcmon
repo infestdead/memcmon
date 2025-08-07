@@ -156,7 +156,7 @@ while (1) {
 		$curr_connections = "err";
 		my ($server_t, $port) = split /:/, $server;
 		$port = 11211 unless $port;
-		my @stats = `echo stats | nc -q 0 $server_t $port 2>/dev/null`;
+		my @stats = `echo stats | nc -w 1 -q 0 $server_t $port 2>/dev/null`;
 		$uptime = $bytes = $usage_percentage = $bytes
 		= $version = $get_hitsps = $curr_items_change
 		= $curr_connections  = $get_missesps
@@ -312,7 +312,6 @@ while (1) {
 
 	addstr(++$cnt, 5, "   ");
 	my $total_time = tv_interval ($start_time);
-	addstr(++$cnt, 5, "asd");
 	addstr(++$cnt, 5, "** 1 second was : $total_time          ");
 	addstr(++$cnt, 4, " ");
 	refresh();
