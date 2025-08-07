@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 
 ####
-### v 0.6
+### v 0.7
 #####
 ### ## changelog ###
 ###
+### 0.7 * fix illegal division by zero
 ### 0.6 * added evictions/s stats
 ### 0.5 * fixed a bug that caused nastry crash if the nc binary was not avaliable / 27 Aug 2012
 ### 0.4 * fixed bug that messed up version numbers since repcached_version was introduced
@@ -18,17 +19,16 @@
 ####
 
 
-use lib "/home/jules/perl5/lib/perl5";
 use strict;
 use Curses;
 use Time::HiRes qw(gettimeofday tv_interval usleep);
-use POSIX;
 
 # enter memcahed IPs below
 # if :port not supplied - assume :11211
 my @memc = qw(
-localhost:11211
-127.0.0.1:11212
+localhost
+192.168.1.1:11234
+server.com:11213
 );
 
 $| = 1;
@@ -51,22 +51,22 @@ if ($nc_valid == 0) {
 }
 
 my (
-$what, 
-$howmuch, 
-$uptime, 
-$version, 
-$curr_connections, 
-$threads, 
-$curr_items, 
-$curr_items_change, 
+$what,
+$howmuch,
+$uptime,
+$version,
+$curr_connections,
+$threads,
+$curr_items,
+$curr_items_change,
 $curr_bytes_read,
 $bytes,
-$bytes_read, 
+$bytes_read,
 $bytes_written,
-$limit_maxbytes, 
-$server, 
-$get_hitsps, 
-$get_missesps, 
+$limit_maxbytes,
+$server,
+$get_hitsps,
+$get_missesps,
 $usage_percentage,
 $total_conns,
 $total_get_hitsps,
@@ -130,20 +130,20 @@ while (1) {
 	addstr(++$cnt, 5, "==========================================================================================================================================================");
 
 	`echo >> $tmpfile`;
-	
+
 	open RO, "<$tmpfile";
 	while (<RO>) {
 			start_color();
 		if (/err/) {
-			init_pair(3,1,-1); 
-			attron(COLOR_PAIR(3)); 
+			init_pair(3,1,-1);
+			attron(COLOR_PAIR(3));
 			addstr(++$cnt, 5, $_);
 			attroff(COLOR_PAIR(3));
 		} else {
 			init_pair(4,2,-1);
                         attron(COLOR_PAIR(4));
                         addstr(++$cnt, 5, $_);
-                        attroff(COLOR_PAIR(3)); 
+                        attroff(COLOR_PAIR(3));
 		}
 
 
@@ -156,20 +156,12 @@ while (1) {
 		$curr_connections = "err";
 		my ($server_t, $port) = split /:/, $server;
 		$port = 11211 unless $port;
-		my @stats;
-		eval {
-			local $SIG{ALRM} = sub { die "alarm\n" };
-			alarm 2;
-			@stats = `echo stats | nc -w 1 $server_t $port 2>/dev/null`;
-			alarm 0;
-		};
-		if ($@) {
-			$uptime = $bytes = $usage_percentage = $bytes
-			= $version = $get_hitsps = $curr_items_change
-			= $curr_connections  = $get_missesps
-			= $threads = $limit_maxbytes = $curr_items = $bytes_read = $bytes_written = $evictions
-			= "err";
-		}
+		my @stats = `echo stats | nc -q 0 $server_t $port 2>/dev/null`;
+		$uptime = $bytes = $usage_percentage = $bytes
+		= $version = $get_hitsps = $curr_items_change
+		= $curr_connections  = $get_missesps
+		= $threads = $limit_maxbytes = $curr_items = $bytes_read = $bytes_written = $evictions
+		= "err" if $?;
 		foreach (@stats) {
 			(undef, $what, $howmuch) = split / /, $_;
 			if ($what =~ /uptime/) {
@@ -187,7 +179,7 @@ while (1) {
 			elsif ($what eq "threads") {
 				$threads = $howmuch;
 			}
-			elsif ($what eq "get_hits") {		
+			elsif ($what eq "get_hits") {
 				$get_hitsps = $howmuch;
 				$get_hitsps -= $tmp_stats{"$server get_hits"};
 				$tmp_stats{"$server get_hits"} = $howmuch;
@@ -241,15 +233,12 @@ while (1) {
 								$total_evictions += $evictions;
 			}
 		}
-		if ($curr_connections eq "err") {
-			$succ_hitps = "-";
-		} else {
-			if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
-				$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
-			} else {
-				$succ_hitps = "0.00";
-			}
-		}
+                $get_hitsps++;
+                next unless $get_hitsps;
+                next unless $get_missesps;
+		$get_hitsps++ unless $get_hitsps;
+		$get_hitsps = 1 unless $get_hitsps > 0;
+		$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
 		write FILE;
 
 	}
@@ -262,7 +251,7 @@ while (1) {
 	$total_bytes 		=~ s/(\d*\.)(\d{0,2}).*/$1$2/;
 	$total_bytes_read	=~ s/(\d*\.)(\d{0,2}).*/$1$2/;
 	$total_bytes_written	=~ s/(\d*\.)(\d{0,2}).*/$1$2/;
-	
+
 	$total_limit_maxbytes = 1 unless $total_limit_maxbytes;
 	my $total_bytes_perc = $total_bytes/$total_limit_maxbytes*100;
 	$total_bytes_perc =~ s/(\d*\.)(\d{0,3}).*/$1$2/;
@@ -292,28 +281,28 @@ while (1) {
 	$total_str .= " "x$ws . $total_items_cached;
 	$ws = 102 - length($total_str) - length($total_items_change);
 	$total_str .= " "x$ws . $total_items_change;
-	
+
 	$ws = 109- length($total_str) - length($total_bytes_read);
 
 	$total_str .= " "x$ws . $total_bytes_read;
 
-	$ws = 119 - length($total_str) - length($total_bytes_written);	
+	$ws = 119 - length($total_str) - length($total_bytes_written);
 	$total_str .= " "x$ws . $total_bytes_written;
-	
+
 	$ws = 128 - length($total_str) - length($total_evictions);
 	$total_str .= " "x$ws . $total_evictions;
-	
+
 	addstr($cnt, 5, "==========================================================================================================================================================");
 
 	init_pair(5,6,-1);
-        
+
 	attron(COLOR_PAIR(5));
 	addstr(++$cnt, 0, "$total_str");
         attroff(COLOR_PAIR(5));
 
 	$total_str = '';
 	$ws = 43 - length("$hit_perc%");
-	$total_str .= " "x$ws . "$hit_perc%";	
+	$total_str .= " "x$ws . "$hit_perc%";
 	$ws = 51 - length("$miss_perc%") - length($total_str);
 	$total_str .= " "x$ws . "$miss_perc%";
 
@@ -323,17 +312,14 @@ while (1) {
 
 	addstr(++$cnt, 5, "   ");
 	my $total_time = tv_interval ($start_time);
+	addstr(++$cnt, 5, "asd");
 	addstr(++$cnt, 5, "** 1 second was : $total_time          ");
 	addstr(++$cnt, 4, " ");
 	refresh();
 }
-format FILE = 
+format FILE =
 @<<<<<<<<<<<<<<<<<<<<< @>>>>>>  @>>>>>  @>>>>> @##.##    @>>>>> @####.## @##.##@#########  @>>>>> @##.##    @##.##    @####      @>>>  @>>>>>     @>>>>>
 $server, $curr_connections, $get_hitsps, $get_missesps, $succ_hitps, $limit_maxbytes, $bytes, $usage_percentage, $curr_items, $curr_items_change, $bytes_read, $bytes_written, $evictions, $threads, $uptime, $version
 .
 
 __END__
-
-
-
-
