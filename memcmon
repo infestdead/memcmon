@@ -246,7 +246,11 @@ while (1) {
 								$total_evictions += $evictions;
 			}
 		}
-		$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+		if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
+			$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+		} else {
+			$succ_hitps = "-";
+		}
 		write FILE;
 
 	}
