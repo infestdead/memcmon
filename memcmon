@@ -19,6 +19,19 @@
 
 
 use strict;
+
+# check for required modules
+eval "use Curses;";
+if ($@) {
+    print "sorry, could not find the 'Curses' perl module, please install it and try again\n";
+    exit;
+}
+eval "use Time::HiRes qw(gettimeofday tv_interval usleep);";
+if ($@) {
+    print "sorry, could not find the 'Time::HiRes' perl module, please install it and try again\n";
+    exit;
+}
+
 use Curses;
 use Time::HiRes qw(gettimeofday tv_interval usleep);
 
@@ -157,12 +170,11 @@ while (1) {
 		$curr_connections = "err";
 		my ($server_t, $port) = split /:/, $server;
 		$port = 11211 unless $port;
-		my @stats = `echo stats | nc -w 1 $server_t $port 2>/dev/null`;
-		$uptime = $bytes = $usage_percentage = $bytes
-		= $version = $get_hitsps = $curr_items_change
-		= $curr_connections  = $get_missesps
-		= $threads = $limit_maxbytes = $curr_items = $bytes_read = $bytes_written = $evictions
-		= "err" if $?;
+		my @stats = `echo stats | nc -w 2 $server_t $port 2>/dev/null`;
+		if ($?) {
+			$curr_connections = "down";
+			$get_hitsps = $get_missesps = $succ_hitps = $limit_maxbytes = $bytes = $usage_percentage = $curr_items = $curr_items_change = $bytes_read = $bytes_written = $evictions = $threads = $uptime = $version = "-";
+		}
 		foreach (@stats) {
 			(undef, $what, $howmuch) = split / /, $_;
 			if ($what =~ /uptime/) {
@@ -234,7 +246,11 @@ while (1) {
 								$total_evictions += $evictions;
 			}
 		}
-		$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+		if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
+			$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
+		} else {
+			$succ_hitps = "-";
+		}
 		write FILE;
 
 	}
