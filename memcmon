@@ -170,7 +170,7 @@ while (1) {
 		$curr_connections = "err";
 		my ($server_t, $port) = split /:/, $server;
 		$port = 11211 unless $port;
-		my @stats = `echo stats | nc -w 1 $server_t $port 2>/dev/null`;
+		my @stats = `timeout 2s echo stats | nc $server_t $port 2>/dev/null`;
 		if ($?) {
 			$curr_connections = "down";
 			$get_hitsps = $get_missesps = $succ_hitps = $limit_maxbytes = $bytes = $usage_percentage = $curr_items = $curr_items_change = $bytes_read = $bytes_written = $evictions = $threads = $uptime = $version = "-";
@@ -249,7 +249,7 @@ while (1) {
 		if ($get_hitsps =~ /^\d+$/ && $get_hitsps > 0) {
 			$succ_hitps = (100 - ($get_missesps/$get_hitsps*100));
 		} else {
-			$succ_hitps = "-";
+			$succ_hitps = "0.00";
 		}
 		write FILE;
 
@@ -329,7 +329,7 @@ while (1) {
 	refresh();
 }
 format FILE = 
-@<<<<<<<<<<<<<<<<<<<<< @>>>>>>  @>>>>>  @>>>>> @##.##    @>>>>> @####.## @##.##@#########  @>>>>> @##.##    @##.##    @####      @>>>  @>>>>>     @>>>>>
+@<<<<<<<<<<<<<<<<<<<<< @>>>>>>  @>>>>>  @>>>>> @#####    @>>>>> @####.## @##.##@#########  @>>>>> @##.##    @##.##    @####      @>>>  @>>>>>     @>>>>>
 $server, $curr_connections, $get_hitsps, $get_missesps, $succ_hitps, $limit_maxbytes, $bytes, $usage_percentage, $curr_items, $curr_items_change, $bytes_read, $bytes_written, $evictions, $threads, $uptime, $version
 .
 
